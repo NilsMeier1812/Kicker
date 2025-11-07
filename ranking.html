@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Elo-Rangliste</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+  <style>
+    .tabs a.active {
+      background-color: var(--primary);
+      color: white !important;
+    }
+    .tabs { display: flex; gap: 0.5rem; }
+    .tabs a { text-decoration: none; }
+    th:first-child, td:first-child { width: 5%; text-align: center; font-weight: bold; }
+    th:last-child, td:last-child { width: 20%; text-align: right; }
+    td:last-child { font-weight: bold; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+  <nav class="container-fluid">
+    <ul>
+      <li><strong>Kicker App</strong></li>
+    </ul>
+    <ul class="tabs">
+      <li><a href="/">Eintragen</a></li>
+      <li><a href="/overview">Übersicht</a></li>
+      <li><a href="/players">Spieler</a></li>
+      <li><a href="/ranking" class="active">Ranking</a></li>
+      <li><a href="/statistics">Statistik</a></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <h2>Elo-Rangliste</h2>
+    <figure>
+      <table role="grid">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Spieler</th>
+            <th scope="col">Elo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in players %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ player.name }}</td>
+            <td>{{ player.elo | round }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </figure>
+  </main>
+</body>
+</html>

@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Kicker-Spielerfassung{% endblock %}
+
+{% block head %}
+  <style>
+    .centered {
+      text-align: center;
+      margin-top: 0.5rem;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(to right, #d9534f, black, #0275d8); /* Standard: Rot → Blau */
+      padding: 0.5rem 1rem;
+      border-radius: 0.75rem;
+      margin-bottom: 1rem;
+      gap: 0.5rem;
+      transition: background 0.3s ease;
+    }
+    .score-row.swapped {
+      background: linear-gradient(to right, #0275d8, black, #d9534f); /* Blau → Rot */
+    }
+    .score-row > * {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 2.25rem;
+    }
+    .swap-btn,
+    .remove-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 2.25rem;
+      width: 2.25rem;
+      aspect-ratio: 1 / 1;
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+      background-color: var(--secondary);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-sizing: border-box;
+      vertical-align: middle;
+      position: relative;
+      transform: translateY(9px);
+    }
+    .swap-btn:hover,
+    .remove-btn:hover {
+      background-color: var(--primary-hover);
+    }
+    .remove-btn.invisible {
+      visibility: hidden;
+    }
+    input[type="number"] {
+      min-width: 0;
+      text-align: center;
+      height: 2.25rem;
+      line-height: 1.2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin: 0;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    .score-row span.separator {
+      flex: 0 0 0%;
+      text-align: center;
+      font-weight: bold;
+      display: flex;
+      height: 2.25rem;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
+    }
+    .score-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      text-align: center;
+      margin: 0.5rem 0;
+      font-weight: bold;
+    }
+    .team-label {
+      font-size: 1.2rem;
+      min-height: 2rem;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h2>Spieler auswählen</h2>
+
+  <form method="POST" action="/submit">
+    <div class="grid">
+      <section>
+        <label for="team1_player1">Team 1</label>
+        <select name="team1_player1" class="player-select">
+            <option value="">(leer)</option>
+            {% for p in players %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        <select name="team1_player2" class="player-select">
+            <option value="">(leer)</option>
+            {% for p in players %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+      </section>
+
+      <section>
+        <label for="team2_player1">Team 2</label>
+        <select name="team2_player1" class="player-select">
+            <option value="">(leer)</option>
+            {% for p in players %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        <select name="team2_player2" class="player-select">
+            <option value="">(leer)</option>
+            {% for p in players %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+      </section>
+    </div>
+
+  <h3 class="centered">Spiele</h3>
+  <div class="game-container">
+    <div class="score-header">
+      <span class="team-label" id="label-team1">Team 1</span>
+      <span class="team-label" id="label-team2">Team 2</span>
+    </div>
+    <div id="games"></div>
+  </div>
+
+    <div class="centered">
+      <button type="button" class="contrast" onclick="addGameRow()">➕ Spiel hinzufügen</button>
+    </div>
+
+    <button type="submit" class="primary">Spiele eintragen</button>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const selects = document.querySelectorAll('.player-select');
+
+    selects.forEach(select => {
+      select.addEventListener("change", updateDisabledOptions);
+    });
+
+    function updateDisabledOptions() {
+      const selected = Array.from(selects).map(s => s.value);
+      selects.forEach(select => {
+        Array.from(select.options).forEach(opt => {
+          opt.disabled = selected.includes(opt.value) && opt.value !== select.value;
+        });
+      });
+    }
+
+    let gameCount = 0;
+
+    function addGameRow() {
+      const games = document.getElementById("games");
+      const container = document.createElement("div");
+      container.className = "score-row";
+      container.dataset.index = gameCount;
+
+      const swapped = gameCount % 2 === 1;
+      if (swapped) container.classList.add("swapped");
+
+      container.innerHTML = `
+        <button type="button" class="swap-btn" onclick="swapSides(this)" title="Seiten tauschen">🔁</button>
+        <input type="number" min="0" name="games[${gameCount}][score1]" required>
+        <span class="separator">:</span>
+        <input type="number" min="0" name="games[${gameCount}][score2]" required>
+        <button type="button" class="remove-btn invisible" onclick="removeGameRow(this)" title="Spiel entfernen">−</button>
+        <input type="hidden" name="games[${gameCount}][swapped]" value="${swapped ? 1 : 0}">
+      `;
+
+      games.appendChild(container);
+      gameCount++;
+      updateRemovability();
+    }
+
+
+
+    function swapSides(button) {
+      const row = button.closest(".score-row");
+      row.classList.toggle("swapped");
+      const hidden = row.querySelector("input[type=hidden]");
+      hidden.value = hidden.value === "1" ? "0" : "1";
+    }
+
+    function removeGameRow(button) {
+      const row = button.closest(".score-row");
+
+      if (button.dataset.confirmed === "true") {
+        row.remove();
+        updateRemovability();
+      } else {
+        button.dataset.confirmed = "true";
+        button.textContent = "🗑️";
+        setTimeout(() => {
+          button.dataset.confirmed = "false";
+          button.textContent = "−";
+        }, 2000);
+      }
+    }
+
+    function updateRemovability() {
+      const rows = document.querySelectorAll(".score-row");
+      rows.forEach((row, idx) => {
+        const removeBtn = row.querySelector(".remove-btn");
+        if (rows.length > 1) {
+          removeBtn.classList.remove("invisible");
+        } else {
+          removeBtn.classList.add("invisible");
+        }
+        removeBtn.dataset.confirmed = "false";
+        removeBtn.textContent = "−";
+      });
+    }
+
+
+    // Erste Spielzeile automatisch hinzufügen
+    addGameRow();
+  
+    // --- Player selection placeholder + uniqueness handling ---
+    function updateDisabledPlayers() {
+      const selects = Array.from(document.querySelectorAll('.player-select'));
+      const selected = selects.map(s => s.value).filter(v => v && v !== "");
+      selects.forEach(select => {
+        Array.from(select.options).forEach(opt => {
+          if (opt.value === "") {
+            opt.disabled = false;
+            return;
+          }
+          // disable if selected elsewhere (and not the current selection)
+          opt.disabled = selected.includes(opt.value) && select.value !== opt.value;
+        });
+      });
+    }
+
+    function updateTeamLabels() {
+        const labelTeam1 = document.getElementById('label-team1');
+        const labelTeam2 = document.getElementById('label-team2');
+
+        const selectsTeam1 = [
+            document.querySelector('select[name="team1_player1"]'),
+            document.querySelector('select[name="team1_player2"]')
+        ];
+        const selectsTeam2 = [
+            document.querySelector('select[name="team2_player1"]'),
+            document.querySelector('select[name="team2_player2"]')
+        ];
+
+        const team1Names = selectsTeam1
+            .map(s => s.options[s.selectedIndex].text)
+            .filter(name => name !== '(leer)');
+
+        const team2Names = selectsTeam2
+            .map(s => s.options[s.selectedIndex].text)
+            .filter(name => name !== '(leer)');
+        
+        labelTeam1.textContent = team1Names.join(' & ') || 'Team 1';
+        labelTeam2.textContent = team2Names.join(' & ') || 'Team 2';
+    }
+
+    document.querySelectorAll('.player-select').forEach(s => {
+      // ensure placeholder is selected by default if nothing selected
+      if (!s.value) s.value = "";
+      s.addEventListener('change', () => {
+        updateDisabledPlayers();
+        updateTeamLabels(); // Namen aktualisieren
+      });
+    });
+
+    // Form submit handling: reorder players and validate teams
+    document.querySelector('form[action="/submit"]').addEventListener('submit', function(e) {
+      // Reorder: if player1 is empty and player2 filled -> move up
+      const t1_p1 = this.querySelector('select[name="team1_player1"]');
+      const t1_p2 = this.querySelector('select[name="team1_player2"]');
+      const t2_p1 = this.querySelector('select[name="team2_player1"]');
+      const t2_p2 = this.querySelector('select[name="team2_player2"]');
+
+      if (t1_p1 && t1_p2 && !t1_p1.value && t1_p2.value) {
+        t1_p1.value = t1_p2.value;
+        t1_p2.value = "";
+      }
+      if (t2_p1 && t2_p2 && !t2_p1.value && t2_p2.value) {
+        t2_p1.value = t2_p2.value;
+        t2_p2.value = "";
+      }
+
+      // Update disabled options before validation
+      updateDisabledPlayers();
+
+      // Validate: each team must have at least one real player
+      if ((!t1_p1 || !t1_p1.value) && (!t1_p2 || !t1_p2.value)) {
+        e.preventDefault();
+        alert("Fehler: Team 1 muss mindestens einen Spieler haben.");
+        return false;
+      }
+      if ((!t2_p1 || !t2_p1.value) && (!t2_p2 || !t2_p2.value)) {
+        e.preventDefault();
+        alert("Fehler: Team 2 muss mindestens einen Spieler haben.");
+        return false;
+      }
+
+      // Before submit, ensure placeholder "(leer)" is not sent as literal.
+      // Since our placeholder uses empty value "", nothing special needed.
+      // Allow form to submit.
+      return true;
+    });
+
+    // Run once on load to set disabled state and labels
+    updateDisabledPlayers();
+    updateTeamLabels();
+  </script>
+{% endblock %}

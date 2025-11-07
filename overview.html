@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Spielübersicht{% endblock %}
+
+{% block head %}
+  <style>
+    :root {
+      --card-padding: 1rem;
+      --card-gap-col: 1rem;
+      --card-gap-row: 0.5rem;
+    }
+
+    /* Grundstruktur der Spiel-Karte */
+    .game-card {
+      border: 1px solid var(--muted-border-color);
+      border-radius: var(--border-radius);
+      margin: 0 0 0.25rem 0;
+      padding: var(--card-padding);
+      display: grid;
+      align-items: center; /* Vertikale Zentrierung für alle Grid-Elemente */
+    }
+
+    /* --- Mobile Layout (Standard) --- */
+    .game-card {
+      grid-template-columns: 1fr auto 1fr; /* 3 Spalten: Team, Scores, Team */
+      grid-template-rows: auto auto; /* 2 Reihen: Namen/Scores, Elo */
+      grid-template-areas:
+        "team-left   scores   team-right"
+        "elo-left    .        elo-right";
+      gap: var(--card-gap-row) var(--card-gap-col);
+    }
+    .team-left  { grid-area: team-left; }
+    .team-right { grid-area: team-right; }
+    .scores     { grid-area: scores; }
+    .elo-left   { grid-area: elo-left; }
+    .elo-right  { grid-area: elo-right; }
+
+    /* Stile für Mobile */
+    .team-names { font-weight: bold; line-height: 1.4; }
+    .team-left .team-names { text-align: left; }
+    .team-right .team-names { text-align: right; }
+
+    .elo-box {
+      font-size: 0.9em;
+      font-weight: bold;
+      padding: 0.4em 0.8em;
+      border-radius: var(--border-radius);
+      color: white;
+      min-width: 50px; /* Stellt sicher, dass die Box immer gleich groß ist */
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .elo-left .elo-box { float: left; }
+    .elo-right .elo-box { float: right; }
+
+    .mobile-only { display: flex; }
+    .desktop-only { display: none; }
+
+    /* --- Desktop Layout --- */
+    @media (min-width: 768px) {
+      :root {
+        --card-padding: 1.5rem;
+        --card-gap-col: 1.5rem;
+      }
+      .game-card {
+        /* 5 Spalten: Team, Elo, Scores, Elo, Team */
+        grid-template-columns: 1fr auto auto auto 1fr;
+        grid-template-rows: auto; /* Nur eine Reihe */
+        grid-template-areas: "team-left elo-left scores elo-right team-right";
+      }
+      .mobile-only { display: none; }
+      .desktop-only { display: flex; }
+
+      /* Anpassungen für Desktop */
+      .team-names { font-size: 1.1em; }
+      .elo-box { font-size: 1.1em; min-width: 65px; }
+
+      /* Team-Namen und Elo-Boxen in die richtige Reihenfolge bringen */
+      .team-left { order: 1; }
+      .elo-left { order: 2; }
+      .scores { order: 3; }
+      .elo-right { order: 4; }
+      .team-right { order: 5; }
+
+      .team-left .team-names { text-align: left; }
+      .team-right .team-names { text-align: right; }
+    }
+
+    /* Gemeinsame Stile für alle Layouts */
+    .scores {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      justify-self: center; /* Zentriert den Block in der Grid-Spalte */
+    }
+    .score-line {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    @media (min-width: 768px) { .score-line { font-size: 1.5em; }}
+
+    .color-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .color-dot.red { background-color: #d9534f; }
+    .color-dot.blue { background-color: #0275d8; }
+
+    .elo-win { background-color: #28a745; }
+    .elo-loss { background-color: #dc3545; }
+    .elo-neutral { background-color: #808080; } /* Graue Box für 0 */
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h2>Letzte Spiele</h2>
+  {% for group in grouped_games %}
+    {% if group[0].red_team and group[0].blue_team %}
+      {% set red_names_sorted = group[0].red_team | map(attribute='name') | sort | list %}
+      {% set blue_names_sorted = group[0].blue_team | map(attribute='name') | sort | list %}
+      {% if red_names_sorted[0] < blue_names_sorted[0] %}
+          {% set left_team_players = group[0].red_team %}
+          {% set right_team_players = group[0].blue_team %}
+      {% else %}
+          {% set left_team_players = group[0].blue_team %}
+          {% set right_team_players = group[0].red_team %}
+      {% endif %}
+      {% set left_team_names_sorted = left_team_players | map(attribute='name') | sort | list %}
+      {% set total_elo = namespace(value=0) %}
+      {% for game in group %}
+          {% set player_name_to_find = left_team_names_sorted[0] %}
+          {% set player_in_red = game.red_team | selectattr('name', 'equalto', player_name_to_find) | first %}
+          {% set player_in_blue = game.blue_team | selectattr('name', 'equalto', player_name_to_find) | first %}
+          {% if player_in_red and player_in_red.elo_change is not none %}{% set total_elo.value = total_elo.value + player_in_red.elo_change %}{% endif %}
+          {% if player_in_blue and player_in_blue.elo_change is not none %}{% set total_elo.value = total_elo.value + player_in_blue.elo_change %}{% endif %}
+      {% endfor %}
+
+      {% set rounded_elo = total_elo.value | round | int %}
+
+      <article class="game-card">
+        <div class="team-left">
+          <div class="team-names">
+            {% for player in left_team_players %}{{ player.name }}<br>{% endfor %}
+          </div>
+        </div>
+        <div class="elo-left">
+            <div class="elo-box {{ 'elo-win' if rounded_elo > 0 else ('elo-loss' if rounded_elo < 0 else 'elo-neutral') }}">
+              {{ (('%+d' if rounded_elo != 0 else '%d') | format(rounded_elo)) }}
+            </div>
+        </div>
+
+        <div class="scores">
+          {% for game in group %}
+            {% set current_red_team_names_sorted = game.red_team | map(attribute='name') | sort | list %}
+            {% set left_team_was_red = current_red_team_names_sorted == left_team_names_sorted %}
+            <div class="score-line">
+              {% if left_team_was_red %}
+                <span class="color-dot red"></span>
+                <span>{{ game.red_score }}:{{ game.blue_score }}</span>
+                <span class="color-dot blue"></span>
+              {% else %}
+                <span class="color-dot blue"></span>
+                <span>{{ game.blue_score }}:{{ game.red_score }}</span>
+                <span class="color-dot red"></span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="elo-right">
+          <div class="elo-box {{ 'elo-win' if rounded_elo < 0 else ('elo-loss' if rounded_elo > 0 else 'elo-neutral') }}">
+            {{ (('%+d' if rounded_elo != 0 else '%d') | format(-rounded_elo)) }}
+          </div>
+        </div>
+        <div class="team-right">
+          <div class="team-names">
+            {% for player in right_team_players %}{{ player.name }}<br>{% endfor %}
+          </div>
+        </div>
+      </article>
+    {% endif %}
+  {% endfor %}
+{% endblock %}

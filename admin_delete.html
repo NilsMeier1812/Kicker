@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin: Spiele löschen</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+</head>
+<body class="container">
+  <h2>Admin: Spiele löschen</h2>
+  <p>Einfach abhaken, was gelöscht werden soll, und unten auf "Ausgewählte löschen" klicken.</p>
+
+  <form method="POST" action="/admin/games">
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Löschen</th>
+          <th>ID</th>
+          <th>Wann</th>
+          <th>Rot (Score)</th>
+          <th>Blau (Score)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in games %}
+        <tr>
+          <td><input type="checkbox" name="game_id" value="{{ g['id'] }}"></td>
+          <td>{{ g['id'] }}</td>
+          <td>{{ g['played_at'] }}</td>
+          <td>{{ g['red_players'] or '-' }} ({{ g['red_score'] }})</td>
+          <td>{{ g['blue_players'] or '-' }} ({{ g['blue_score'] }})</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="contrast">Ausgewählte löschen</button>
+  </form>
+</body>
+</html>

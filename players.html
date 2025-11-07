@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Spieler verwalten{% endblock %}
+
+{% block head %}
+  <style>
+    table {
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    td, th {
+      text-align: left;
+      vertical-align: middle;
+    }
+    .remove-btn {
+      background-color: var(--secondary);
+      border: none;
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .remove-btn:hover {
+      background-color: var(--primary-hover);
+    }
+    .add-form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: end;
+      margin-top: 2rem;
+    }
+    .add-form input[type="text"] {
+      margin-bottom: 0;
+    }
+    .add-form button {
+      width: 50px;
+      height: 50px;
+      font-size: 1.5rem;
+      padding: 0;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h2>Spieler verwalten</h2>
+
+  <table>
+    <tbody>
+      {% for player in players %}
+      <tr>
+        <td>{{ player.name }}</td>
+        <td style="text-align: right;">
+          <form method="POST" action="/delete_player" style="display:inline">
+            <input type="hidden" name="player_id" value="{{ player.id }}">
+
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="POST" action="/add_player" class="add-form">
+    <input type="text" name="name" placeholder="Neuer Spieler" required />
+    <button type="submit" class="contrast">+</button>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function confirmRemove(button) {
+      if (button.dataset.confirmed === "true") {
+        button.closest("form").submit();
+      } else {
+        button.dataset.confirmed = "true";
+        button.textContent = "🗑️";
+        setTimeout(() => {
+          button.dataset.confirmed = "false";
+          button.textContent = "−";
+        }, 2000);
+      }
+    }
+  </script>
+{% endblock %}

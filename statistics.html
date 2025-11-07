@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Statistiken{% endblock %}
+
+{% block head %}
+  <style>
+    main > h2 { margin-bottom: 0.5rem; }
+    .view-toggle {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      border: 1px solid var(--form-element-border-color);
+      border-radius: var(--border-radius);
+      margin-bottom: 2rem;
+      text-align: center;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      background-color: transparent;
+      box-shadow: none;
+      padding: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .view-toggle button:not(:last-child) {
+      border-right: 1px solid var(--form-element-border-color);
+    }
+    .view-toggle button.active {
+      background-color: var(--primary);
+      color: var(--primary-inverse);
+    }
+    .stats-view { display: none; }
+    .stats-view.active { display: block; }
+    table { width: 100%; }
+    th, td { text-align: center; vertical-align: middle; padding: 0.75rem 0.5rem; }
+    #elo-view th:first-child, #elo-view td:first-child { width: 10%; text-align: center; font-weight: bold; }
+    #elo-view th:last-child, #elo-view td:last-child { width: 25%; text-align: right; }
+    #elo-view td:last-child { font-weight: bold; font-size: 1.1rem; }
+    #elo-view td:nth-child(2) { text-align: left; }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { background-color: var(--primary-hover); color: var(--primary-inverse); }
+    th.sortable::after { content: ' \2195'; font-size: 0.8em; opacity: 0.5; }
+    th.sorted-asc::after { content: ' \25B2'; opacity: 1; }
+    th.sorted-desc::after { content: ' \25BC'; opacity: 1; }
+    td.player-name { text-align: left; font-weight: bold; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h2>Statistiken</h2>
+
+  <div class="view-toggle">
+    <button id="btn-elo" class="active">Elo-Ranking</button>
+    <button id="btn-table">Detail-Statistik</button>
+  </div>
+
+  <div id="elo-view" class="stats-view active">
+    <figure>
+      <table role="grid">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col" style="text-align: left;">Spieler</th>
+            <th scope="col">Elo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in players %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ player.name }}</td>
+            <td>{{ player.elo }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </figure>
+  </div>
+
+  <div id="table-view" class="stats-view">
+    <div role="region" tabindex="0">
+      <table id="stats-table">
+        <thead>
+          <tr>
+            <th class="sortable player-name" data-sort="string" data-sort-state="desc">Spieler</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Gespielte Spiele">Spiele</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Siege">S</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Niederlagen">N</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Siegesquote">Sieg %</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Geschossene Tore">Tore</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Gegentore">GT</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Tordifferenz">TD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in player_stats %}
+          <tr>
+            <td class="player-name">{{ player.name }}</td>
+            <td>{{ player.games_played }}</td>
+            <td>{{ player.wins }}</td>
+            <td>{{ player.losses }}</td>
+            <td>{{ '%.1f'|format(player.win_rate) }}%</td>
+            <td>{{ player.goals_for }}</td>
+            <td>{{ player.goals_against }}</td>
+            <td>{{ player.goal_difference }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btnElo = document.getElementById('btn-elo');
+      const btnTable = document.getElementById('btn-table');
+      const eloView = document.getElementById('elo-view');
+      const tableView = document.getElementById('table-view');
+
+      btnElo.addEventListener('click', () => {
+        btnElo.classList.add('active');
+        btnTable.classList.remove('active');
+        eloView.classList.add('active');
+        tableView.classList.remove('active');
+      });
+
+      btnTable.addEventListener('click', () => {
+        btnTable.classList.add('active');
+        btnElo.classList.remove('active');
+        tableView.classList.add('active');
+        eloView.classList.remove('active');
+      });
+
+      const table = document.getElementById('stats-table');
+      const headers = table.querySelectorAll('th.sortable');
+      const tbody = table.querySelector('tbody');
+      const originalRows = Array.from(tbody.querySelectorAll('tr'));
+
+      headers.forEach((header, index) => {
+        header.addEventListener('click', () => {
+          const currentState = header.dataset.sortState;
+          let nextState;
+
+          if (currentState === 'unsorted') nextState = 'desc';
+          else if (currentState === 'desc') nextState = 'asc';
+          else nextState = 'unsorted';
+
+          headers.forEach(h => {
+            h.dataset.sortState = 'unsorted';
+            h.classList.remove('sorted-asc', 'sorted-desc');
+          });
+
+          header.dataset.sortState = nextState;
+          if (nextState === 'asc') header.classList.add('sorted-asc');
+          if (nextState === 'desc') header.classList.add('sorted-desc');
+
+          if (nextState === 'unsorted') {
+            originalRows.forEach(row => tbody.appendChild(row));
+          } else {
+            const direction = nextState === 'asc' ? 1 : -1;
+            const sortType = header.dataset.sort;
+
+            Array.from(tbody.querySelectorAll('tr'))
+              .sort((a, b) => {
+                const aVal = a.children[index].textContent.trim();
+                const bVal = b.children[index].textContent.trim();
+
+                if (sortType === 'number') {
+                  return (parseFloat(aVal.replace('%', '')) - parseFloat(bVal.replace('%', ''))) * direction;
+                } else {
+                  return aVal.localeCompare(bVal) * direction;
+                }
+              })
+              .forEach(row => tbody.appendChild(row));
+          }
+        });
+      });
+    });
+  </script>
+{% endblock %}
+
