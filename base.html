@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Kicker App{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+  <style>
+    /* Neues, zentrales Navbar-Styling */
+    nav {
+      padding: 0 !important; /* Entfernt den Außen-Padding der Navigationsleiste */
+      border-bottom: 1px solid var(--muted-border-color);
+    }
+    nav ul.tabs {
+      display: flex; /* Aktiviert Flexbox */
+      justify-content: center; /* Stellt sicher, dass die Elemente zentriert sind */
+      padding: 0;
+      margin: 0;
+      list-style-type: none;
+      width: 100%; /* Nimmt die volle Breite ein */
+    }
+    nav ul.tabs li {
+       flex-grow: 1; /* Lässt jedes Listenelement wachsen, um den Platz zu füllen */
+       text-align: center; /* Zentriert den Text im Listenelement */
+    }
+    nav ul.tabs a {
+      text-decoration: none;
+      padding: 0.75rem 0.5rem; /* Einheitliches Padding */
+      display: block; /* Macht den Link zu einem Block, der das ganze LI ausfüllt */
+      transition: background-color 0.2s ease, color 0.2s ease;
+      font-weight: bold;
+      color: var(--secondary);
+    }
+    nav ul.tabs a.active {
+      background-color: var(--primary);
+      color: var(--primary-inverse) !important;
+      border-bottom: none;
+    }
+    nav ul.tabs a:not(.active):hover {
+        background-color: var(--muted-border-color);
+    }
+
+    /* Media Query für sehr kleine Bildschirme, um die Lesbarkeit zu gewährleisten */
+    @media (max-width: 400px) {
+      nav ul.tabs a {
+        font-size: 0.8rem; /* Kleinere Schrift für sehr schmale Handys */
+        padding: 0.75rem 0.2rem;
+      }
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="container-fluid">
+    <ul class="tabs">
+        <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Eintragen</a></li>
+        <li><a href="/overview" {% if request.path == '/overview' %}class="active"{% endif %}>Übersicht</a></li>
+        <li><a href="/players" {% if request.path == '/players' %}class="active"{% endif %}>Spieler</a></li>
+        <li><a href="/statistics" {% if request.path == '/statistics' %}class="active"{% endif %}>Statistik</a></li>
+    </ul>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

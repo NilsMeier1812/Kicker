@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Statistiken{% endblock %}
+
+{% block head %}
+  <style>
+    main > h2 { margin-bottom: 0.5rem; }
+    .view-toggle {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      border: 1px solid var(--form-element-border-color);
+      border-radius: var(--border-radius);
+      margin-bottom: 2rem;
+      text-align: center;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      background-color: transparent;
+      box-shadow: none;
+      padding: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .view-toggle button:not(:last-child) {
+      border-right: 1px solid var(--form-element-border-color);
+    }
+    .view-toggle button.active {
+      background-color: var(--primary);
+      color: var(--primary-inverse);
+    }
+    .stats-view { display: none; }
+    .stats-view.active { display: block; }
+    table { width: 100%; }
+    th, td { text-align: center; vertical-align: middle; padding: 0.75rem 0.5rem; }
+    
+    /* Styling für Elo-Trend (Icon + Zahl) */
+    .elo-change-value {
+      font-size: 0.9em;
+      font-weight: normal;
+    }
+    .elo-win { color: #28a745; }
+    .elo-loss { color: #dc3545; }
+    .elo-neutral { color: #808080; }
+    .trend-icon {
+      font-weight: bold;
+      font-size: 1.1em;
+      width: 1em; 
+      display: inline-block;
+      text-align: center;
+      margin-right: 0.1rem; /* Minimaler Abstand zur Zahl */
+    }
+    
+    /* Styling für die Gesamt-Elo-Zahl */
+    td.elo-total {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    
+    /* Detail-Tabelle (unverändert) */
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { background-color: var(--primary-hover); color: var(--primary-inverse); }
+    th.sortable::after { content: ' \2195'; font-size: 0.8em; opacity: 0.5; }
+    th.sorted-asc::after { content: ' \25B2'; opacity: 1; }
+    th.sorted-desc::after { content: ' \25BC'; opacity: 1; }
+    td.player-name { text-align: left; font-weight: bold; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h2>Statistiken</h2>
+
+  <div class="view-toggle">
+    <button id="btn-elo" class="active">Elo-Ranking</button>
+    <button id="btn-table">Detail-Statistik</button>
+  </div>
+
+  <div id="elo-view" class="stats-view active">
+    <figure>
+      <table role="grid">
+        <thead>
+          <tr>
+            <th scope="col" style="width: 10%; text-align: center;" title="Platz-Änderung"></th>
+            <th scope="col" style="width: 5%; text-align: center;">#</th>
+            <th scope="col" style="text-align: left;">Spieler</th>
+            <th scope="col" style="width: 10%; text-align: right;" title="Elo-Änderung (letzte Gruppe)"></th>
+            <th scope="col" style="width: 12%; text-align: right;">Elo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in players %}
+            {% set rank_change = player.rank_change %}
+            {% set elo_change = player.last_elo_change | round | int %}
+          <tr>
+            
+            <td style="text-align: center;">
+              {% if rank_change > 0 %}
+                <span class="trend-icon elo-win">▲</span>
+                <span class="elo-change-value elo-win">{{ rank_change }}</span>
+              {% elif rank_change < 0 %}
+                <span class="trend-icon elo-loss">▼</span>
+                <span class="elo-change-value elo-loss">{{ rank_change|abs }}</span>
+              {% else %}
+                <span class="trend-icon elo-neutral">•</span>
+              {% endif %}
+            </td>
+            
+            <td style="text-align: center; font-weight: bold;">{{ player.current_rank }}</td>
+            
+            <td style="text-align: left;">{{ player.name }}</td>
+            
+            <td style="text-align: right;">
+              {% if elo_change > 0 %}
+                <span class="elo-change-value elo-win">(+{{ elo_change }})</span>
+              {% elif elo_change < 0 %}
+                <span class="elo-change-value elo-loss">({{ elo_change }})</span>
+              {% else %}
+                 {% if player.id in latest_changes %} 
+                   <span class="elo-change-value elo-neutral">(0)</span>
+                 {% endif %}
+              {% endif %}
+            </td>
+            
+            <td class="elo-total" style="text-align: right;">
+              {{ player.elo | round | int }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </figure>
+  </div>
+
+  <div id="table-view" class="stats-view">
+    <div role="region" tabindex="0">
+      <table id="stats-table">
+        <thead>
+          <tr>
+            <th class="sortable player-name" data-sort="string" data-sort-state="desc">Spieler</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Gespielte Spiele (ohne Unentschieden)">Spiele</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Siege">S</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Niederlagen">N</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Siegesquote">Sieg %</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Geschossene Tore">Tore</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Gegentore">GT</th>
+            <th class="sortable" data-sort="number" data-sort-state="unsorted" title="Tordifferenz">TD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in player_stats %}
+          <tr>
+            <td class="player-name">{{ player.name }}</td>
+            <td>{{ player.games_played }}</td>
+            <td>{{ player.wins }}</td>
+            <td>{{ player.losses }}</td>
+            <td>{{ '%.1f'|format(player.win_rate) }}%</td>
+            <td>{{ player.goals_for }}</td>
+            <td>{{ player.goals_against }}</td>
+            <td>{{ player.goal_difference }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btnElo = document.getElementById('btn-elo');
+      const btnTable = document.getElementById('btn-table');
+      const eloView = document.getElementById('elo-view');
+      const tableView = document.getElementById('table-view');
+
+      // Toggle-Funktionalität
+      btnElo.addEventListener('click', () => {
+        btnElo.classList.add('active');
+        btnTable.classList.remove('active');
+        eloView.classList.add('active');
+        tableView.classList.remove('active');
+      });
+
+      btnTable.addEventListener('click', () => {
+        btnTable.classList.add('active');
+        btnElo.classList.remove('active');
+        tableView.classList.add('active');
+        eloView.classList.remove('active');
+      });
+
+      // Sortier-Logik für die Detail-Tabelle
+      const table = document.getElementById('stats-table');
+      const headers = table.querySelectorAll('th.sortable');
+      const tbody = table.querySelector('tbody');
+      const originalRows = Array.from(tbody.querySelectorAll('tr'));
+
+      headers.forEach((header, index) => {
+        header.addEventListener('click', () => {
+          const currentState = header.dataset.sortState;
+          let nextState;
+
+          if (currentState === 'unsorted') nextState = 'desc';
+          else if (currentState === 'desc') nextState = 'asc';
+          else nextState = 'unsorted';
+
+          headers.forEach(h => {
+            h.dataset.sortState = 'unsorted';
+            h.classList.remove('sorted-asc', 'sorted-desc');
+          });
+
+          header.dataset.sortState = nextState;
+          if (nextState === 'asc') header.classList.add('sorted-asc');
+          if (nextState === 'desc') header.classList.add('sorted-desc');
+
+          if (nextState === 'unsorted') {
+            originalRows.forEach(row => tbody.appendChild(row));
+          } else {
+            const direction = nextState === 'asc' ? 1 : -1;
+            const sortType = header.dataset.sort;
+
+            Array.from(tbody.querySelectorAll('tr'))
+              .sort((a, b) => {
+                const aVal = a.children[index].textContent.trim();
+                const bVal = b.children[index].textContent.trim();
+
+                if (sortType === 'number') {
+                  const numA = parseFloat(aVal.replace('%', ''));
+                  const numB = parseFloat(bVal.replace('%', ''));
+                  if (isNaN(numA)) return 1 * direction;
+                  if (isNaN(numB)) return -1 * direction;
+                  return (numA - numB) * direction;
+                } else {
+                  return aVal.localeCompare(bVal) * direction;
+                }
+              })
+              .forEach(row => tbody.appendChild(row));
+          }
+        });
+      });
+      
+      // Standard-Sortierung nach "Siege"
+      const defaultSortHeader = Array.from(headers).find(h => h.title === 'Siege');
+      if (defaultSortHeader) {
+          defaultSortHeader.click();
+      }
+    });
+  </script>
+{% endblock %}

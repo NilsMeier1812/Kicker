@@ -1,0 +1,52 @@
+<form id="edit-group-form">
+
+  <div class="grid">
+    <section>
+      <h6 style="margin-bottom: 0.5rem;">Team 1</h6>
+      <p>{{ team1_names_sorted | join(' & ') }}</p>
+    </section>
+    <section>
+      <h6 style="margin-bottom: 0.5rem;">Team 2</h6>
+      <p>{{ team2_names_sorted | join(' & ') }}</p>
+    </section>
+  </div>
+
+  <table role="grid">
+    <thead>
+      <tr>
+        <th>Spiel</th>
+        <th style="text-align: center;">Team 1</th>
+        <th style="text-align: center;">Team 2</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for gamedata in games_list_with_players %}
+
+      {% set game = gamedata.game_data %}
+
+      {% set team1_was_red_this_game = (gamedata.red_team_names == team1_names_sorted) %}
+
+      <tr>
+        <td>Spiel {{ loop.index }} <small>(ID: {{ game.id }})</small></td>
+
+        {% if team1_was_red_this_game %}
+          <td>
+            <input type="number" name="score_red[{{ game.id }}]" value="{{ game.red_score }}" min="0" required>
+          </td>
+          <td>
+            <input type="number" name="score_blue[{{ game.id }}]" value="{{ game.blue_score }}" min="0" required>
+          </td>
+        {% else %}
+          <td>
+            <input type="number" name="score_blue[{{ game.id }}]" value="{{ game.blue_score }}" min="0" required>
+          </td>
+          <td>
+            <input type="number" name="score_red[{{ game.id }}]" value="{{ game.red_score }}" min="0" required>
+          </td>
+        {% endif %}
+
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
