@@ -7,23 +7,24 @@ K_FACTOR = 32
 
 def recalculate_all_elo():
     """
-    Berechnet die Elo-Werte für alle Spieler von Grund auf neu und speichert
-    die Veränderung für jedes Spiel in der elo_history Tabelle.
+    Berechnet die Elo-Werte für alle Spieler von Grund auf neu.
+    Änderungen werden pro Spiel berechnet, aber erst pro Gruppe
+    auf die Basis-Elo-Werte der Spieler angewendet.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 1. Alte Elo-Historie löschen für eine saubere Neuberechnung
+    # 1. Alte Elo-Historie löschen
     cursor.execute("DELETE FROM elo_history")
 
-    # 2. Alle Spieler holen und ihre Elo-Werte im Speicher initialisieren
+    # 2. Alle Spieler holen und Elo im Speicher initialisieren
     cursor.execute("SELECT id FROM players")
     players = cursor.fetchall()
     player_elos = {player['id']: STARTING_ELO for player in players}
 
     # 3. Alle Spiele in chronologischer Reihenfolge abrufen
     cursor.execute("""
-        SELECT g.id, g.red_score, g.blue_score,
+        SELECT g.id, g.group_id, g.red_score, g.blue_score,
                GROUP_CONCAT(CASE WHEN gp.side = 'red' THEN gp.player_id END) as red_team_ids,
                GROUP_CONCAT(CASE WHEN gp.side = 'blue' THEN gp.player_id END) as blue_team_ids
         FROM games g
@@ -34,15 +35,31 @@ def recalculate_all_elo():
     games = cursor.fetchall()
 
     elo_history_to_insert = []
+    
+    # NEU: Temporäre Speicher für Elo-Änderungen pro Gruppe
+    current_group_id = None
+    group_elo_changes = {} # Speichert {player_id: total_change} für die AKTUELLE Gruppe
 
-    # 4. Jedes Spiel durchgehen und Elo anpassen
+    # 4. Jedes Spiel durchgehen
     for game in games:
+        game_group_id = game['group_id']
+
+        # Wenn eine neue Gruppe beginnt, wende die Änderungen der letzten Gruppe an
+        if game_group_id != current_group_id and current_group_id is not None:
+            for player_id, change in group_elo_changes.items():
+                if player_id in player_elos:
+                    player_elos[player_id] += change
+            group_elo_changes = {} # Zurücksetzen für die neue Gruppe
+        
+        current_group_id = game_group_id
+
         red_team_ids = [int(pid) for pid in game['red_team_ids'].split(',') if pid] if game['red_team_ids'] else []
         blue_team_ids = [int(pid) for pid in game['blue_team_ids'].split(',') if pid] if game['blue_team_ids'] else []
 
         if not red_team_ids or not blue_team_ids:
             continue
 
+        # WICHTIG: Elo-Werte aus dem Haupt-Dictionary holen (Basis-Elo für die Gruppe)
         red_team_elos = [player_elos[pid] for pid in red_team_ids]
         blue_team_elos = [player_elos[pid] for pid in blue_team_ids]
 
@@ -53,21 +70,27 @@ def recalculate_all_elo():
         actual_score_red = 1.0 if game['red_score'] > game['blue_score'] else 0.0 if game['blue_score'] > game['red_score'] else 0.5
         elo_change = K_FACTOR * (actual_score_red - expected_score_red)
 
-        # Elo-Werte im Speicher aktualisieren und Historie für DB vorbereiten
+        # Elo-Historie für DB vorbereiten (wie zuvor)
         for player_id in red_team_ids:
-            player_elos[player_id] += elo_change
             elo_history_to_insert.append((game['id'], player_id, elo_change))
+            # NEU: Änderung für die GRUPPE zwischenspeichern
+            group_elo_changes[player_id] = group_elo_changes.get(player_id, 0) + elo_change
+        
         for player_id in blue_team_ids:
-            player_elos[player_id] -= elo_change
             elo_history_to_insert.append((game['id'], player_id, -elo_change))
+            # NEU: Änderung für die GRUPPE zwischenspeichern
+            group_elo_changes[player_id] = group_elo_changes.get(player_id, 0) - elo_change
 
-    # 5. Finale Elo-Werte und die gesamte Historie in die Datenbank schreiben
+    # 5. Wende die Änderungen der ALLERLETZTEN Gruppe an
+    for player_id, change in group_elo_changes.items():
+        if player_id in player_elos:
+            player_elos[player_id] += change
+
+    # 6. Finale Elo-Werte und Historie in die DB schreiben
     try:
-        # Elo-Werte der Spieler aktualisieren
         update_players_data = [(round(elo), pid) for pid, elo in player_elos.items()]
         cursor.executemany("UPDATE players SET elo = ? WHERE id = ?", update_players_data)
 
-        # Elo-Historie einfügen
         cursor.executemany("INSERT INTO elo_history (game_id, player_id, elo_change) VALUES (?, ?, ?)", elo_history_to_insert)
 
         conn.commit()
